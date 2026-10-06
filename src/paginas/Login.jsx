@@ -1,13 +1,12 @@
 // Página de login: o usuário escolhe o perfil, digita e-mail e senha e é levado para a área correta.
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Eye, EyeOff, Lock, User, ArrowRight, Stethoscope, FileText, Star, ShieldCheck, GraduationCap, Presentation, Building2 } from "lucide-react";
+import { Eye, EyeOff, Lock, User, ArrowRight, Stethoscope, FileText, Star, ShieldCheck } from "lucide-react";
 import { login } from "../contextos/AuthContext";
 import { Logo, SenaiMark } from "../componentes/DetalhesJustificativa";
 import { cn } from "../componentes/ui/utils";
 const campus = { url: "/assets/campus-natal.png" };
 
-// ===== Tela de entrada =====
 export default function Login() {
   const navigate = useNavigate();
   const [role, setRole] = useState("aluno");
@@ -15,27 +14,30 @@ export default function Login() {
   const [pw, setPw] = useState("");
   const [show, setShow] = useState(false);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const go = (r) =>
     navigate(r === "aluno" ? "/aluno" : r === "professor" ? "/professor" : "/secretaria");
+
   const submit = async (e) => {
     e.preventDefault();
     if (!id.trim() || pw.length < 4) return setErr("Informe e-mail e senha.");
     setErr("");
-    const u = await login(id, pw);
-    if (!u) return setErr("E-mail ou senha incorretos.");
-    go(u.role);
+    setLoading(true);
+    try {
+      const u = await login(id, pw);
+      if (!u) {
+        setErr("E-mail ou senha incorretos.");
+      } else {
+        go(u.role);
+      }
+    } catch {
+      setErr("Erro ao conectar. Verifique sua conexão.");
+    } finally {
+      setLoading(false);
+    }
   };
-  const quick = (r) => {
-    setRole(r);
-    setId(
-      r === "aluno"
-        ? "khauan@aluno.senai.br"
-        : r === "professor"
-          ? "alan@senai.br"
-          : "secretaria@senai.br",
-    );
-    setErr("");
-  };
+
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
       <div className="relative hidden overflow-hidden bg-navy lg:block">
@@ -124,9 +126,9 @@ export default function Login() {
                     maxLength={120}
                     placeholder={
                       role === "aluno"
-                        ? "khauan@aluno.senai.br"
+                        ? "aluno@senai.br"
                         : role === "professor"
-                          ? "alan@senai.br"
+                          ? "professor@senai.br"
                           : "secretaria@senai.br"
                     }
                     className="h-12 flex-1 bg-transparent text-sm outline-none"
@@ -156,40 +158,15 @@ export default function Login() {
                 </div>
               </label>
               {err && <p className="text-sm text-destructive">{err}</p>}
-              <button className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground hover:bg-primary/90">
-                Entrar <ArrowRight className="h-4 w-4" />
+              <button
+                disabled={loading}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {loading ? "Entrando..." : "Entrar"} <ArrowRight className="h-4 w-4" />
               </button>
             </form>
 
-            <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-              <div className="h-px flex-1 bg-border" />
-              acesso rápido para demonstração
-              <div className="h-px flex-1 bg-border" />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                onClick={() => quick("aluno")}
-                className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary/30 py-3 text-sm font-medium text-primary hover:bg-accent"
-              >
-                <GraduationCap className="h-4 w-4" />
-                Aluno
-              </button>
-              <button
-                onClick={() => quick("professor")}
-                className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary/30 py-3 text-sm font-medium text-primary hover:bg-accent"
-              >
-                <Presentation className="h-4 w-4" />
-                Professor
-              </button>
-              <button
-                onClick={() => quick("secretaria")}
-                className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary/30 py-3 text-sm font-medium text-primary hover:bg-accent"
-              >
-                <Building2 className="h-4 w-4" />
-                Secretaria
-              </button>
-            </div>
-            <SenaiMark className="mt-10" />
+            <SenaiMark className="mt-12" />
           </div>
         </div>
       </div>

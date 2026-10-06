@@ -1,82 +1,31 @@
--- 1. Habilita a extensão de criptografia de senhas
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- =====================================================================
+-- Permite que alunos atualizem e excluam suas próprias justificativas
+-- quando forem recusadas ou solicitadas para correção.
+-- =====================================================================
 
--- 2. Cria os utilizadores de teste diretamente na autenticação
-INSERT INTO auth.users (
-  instance_id,
-  id,
-  aud,
-  role,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  created_at,
-  updated_at
-) VALUES
-(
-  '00000000-0000-0000-0000-000000000000',
-  gen_random_uuid(),
-  'authenticated',
-  'authenticated',
-  'khauan@aluno.senai.br',
-  crypt('senai1234', gen_salt('bf')),
-  now(),
-  '{"provider":"email","providers":["email"]}'::jsonb,
-  '{}'::jsonb,
-  now(),
-  now()
-),
-(
-  '00000000-0000-0000-0000-000000000000',
-  gen_random_uuid(),
-  'authenticated',
-  'authenticated',
-  'alan@senai.br',
-  crypt('senai1234', gen_salt('bf')),
-  now(),
-  '{"provider":"email","providers":["email"]}'::jsonb,
-  '{}'::jsonb,
-  now(),
-  now()
-),
-(
-  '00000000-0000-0000-0000-000000000000',
-  gen_random_uuid(),
-  'authenticated',
-  'authenticated',
-  'secretaria@senai.br',
-  crypt('senai1234', gen_salt('bf')),
-  now(),
-  '{"provider":"email","providers":["email"]}'::jsonb,
-  '{}'::jsonb,
-  now(),
-  now()
-)
-ON CONFLICT (email) DO NOTHING;
+GRANT DELETE ON public.justifications TO authenticated;
 
--- 3. Cria os perfis nas tabelas do sistema (profiles)
-INSERT INTO public.profiles (id, full_name, email)
-SELECT id, 
-       CASE 
-         WHEN email = 'khauan@aluno.senai.br' THEN 'Khauan Aluno'
-         WHEN email = 'alan@senai.br' THEN 'Alan Professor'
-         ELSE 'Secretaria SENAI'
-       END,
-       email
-FROM auth.users
-WHERE email IN ('khauan@aluno.senai.br', 'alan@senai.br', 'secretaria@senai.br')
-ON CONFLICT (id) DO NOTHING;
+-- Permite ao aluno editar apenas suas próprias justificativas
+DROP POLICY IF EXISTS "Students update own justifications" ON public.justifications;
+CREATE POLICY "Students update own justifications" ON public.justifications
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = student_id)
+  WITH CHECK (auth.uid() = student_id);
 
--- 4. Define os privilégios (Aluno, Professor e Secretaria)
-INSERT INTO public.user_roles (user_id, role)
-SELECT id,
-       CASE 
-         WHEN email = 'khauan@aluno.senai.br' THEN 'student'
-         WHEN email = 'alan@senai.br' THEN 'teacher'
-         ELSE 'secretary'
-       END
-FROM auth.users
-WHERE email IN ('khauan@aluno.senai.br', 'alan@senai.br', 'secretaria@senai.br')
-ON CONFLICT DO NOTHING;
+-- Permite ao aluno excluir apenas suas próprias justificativas
+DROP POLICY IF EXISTS "Students delete own justifications" ON public.justifications;
+CREATE POLICY "Students delete own justifications" ON public.justifications
+  FOR DELETE TO authenticated
+  USING (auth.uid() = student_id);
+
+-- Permite ao aluno remover arquivos da sua pasta no bucket 'justificativas'
+DROP POLICY IF EXISTS "Users delete own documents" ON storage.objects;
+CREATE POLICY "Users delete own documents" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'justificativas' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Permite ao aluno atualizar/substituir arquivos da sua pasta no bucket 'justificativas'
+DROP POLICY IF EXISTS "Users update own documents" ON storage.objects;
+CREATE POLICY "Users update own documents" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (bucket_id = 'justificativas' AND (storage.foldername(name))[1] = auth.uid()::text);
